@@ -9,8 +9,9 @@ using Distributed
 @testset "onprocs" begin
     @testset "worker-init" begin
         if length(workers()) < 2
-            @test addprocs(2, exename = ParallelProcessingTools.mtjulia_exe()) == [2, 3]
+            addprocs(2)
         end
+        eval(:(@everywhere using Distributed))
         @test length(workers()) >= 2
     end
 
@@ -27,6 +28,20 @@ using Distributed
             @onthreads allthreads() tl[] = threadid()
             (proc = myid(), threads = getallvalues(tl))
         end) == ref_result
+    end
+
+    @testset "macro mp_async" begin
+        @test begin
+            n = 128
+            A = Vector{Future}(undef, n)
+            @sync for i in 1:n
+                A[i] = @mp_async begin
+                    @assert myid() != 1
+                    log(i)
+                end
+            end
+            fetch.(A) == log.(1:n)
+        end
     end
 
     @testset "mtjulia_exe" begin
